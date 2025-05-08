@@ -1,0 +1,95 @@
+location:
+  description: "The user's current or desired location. This can be:"
+  prompt: |
+    * A country (e.g., "France")
+    * A city (e.g., "Paris")
+    * A specific address (e.g., "1600 Amphitheatre Parkway, Mountain View, CA")
+    * A landmark (e.g., "Eiffel Tower")
+    * GPS coordinates (e.g., "37.7749, -122.4194")
+    * A relative location (e.g., "near me"). If "near me" is used, consider it as a signal that you need to detect other parameters to determine the location (eg. city name in the query)
+    * If no location is mentioned, set to `null`.
+  type: "string or null"
+  example: "near me"
+ 
+place_to_search:
+  description: "The type of place the user is looking for. Examples:"
+  prompt: |
+    * "restaurant"
+    * "coffee shop"
+    * "grocery store"
+    * "pharmacy"
+    * "shopping mall"
+    * "bookstore"
+    * Be as specific as possible.  If the user says "a place to eat", use "restaurant".  If they say "food", also use "restaurant."
+    * If no place is specified, set to `null`.
+  type: "string or null"
+  example: "restaurant"
+ 
+travel_duration:
+  description: "The maximum acceptable travel time from the user's location."
+  prompt: |
+    * value: A numerical value representing the duration.
+    * unit: The unit of time (e.g., "minutes", "hours", "seconds"). Be consistent with units.
+    * mode: The mode of travel, which can be "driving", "walking", "bicycling", or "transit". Default to "walking" if not specified.
+    * If an explicit duration is provided, extract the numerical value, unit, and mode (e.g., "within 10 minutes by walking" → value: 10, unit: "minutes", mode: "walking").
+    * For vague phrases indicating proximity by a specific mode (e.g., "within walking distance", "a short drive", "biking distance", "accessible by transit"):
+      * Infer a default duration based on the mode:
+        * Walking: Use 15 as the value and "minutes" as the unit for phrases like "within walking distance" or "walkable".
+        * Driving: Use 10 as the value and "minutes" as the unit for phrases like "a short drive" or "driving distance".
+        * Bicycling: Use 20 as the value and "minutes" as the unit for phrases like "biking distance" or "bikeable".
+        * Transit: Use 30 as the value and "minutes" as the unit for phrases like "accessible by transit" or "by public transport".
+    * If no duration or vague phrase is specified, set value, unit, and mode to null.
+    * Use the maps_distance_matrix function to calculate distances and durations between origins and destinations with the specified mode.
+    * Examples:
+      * "within 10 minutes by walking" → value: 10, unit: "minutes", mode: "walking"
+      * "a 2-hour drive" → value: 2, unit: "hours", mode: "driving"
+      * "within walking distance" → value: 15, unit: "minutes", mode: "walking"
+      * "a short drive" → value: 10, unit: "minutes", mode: "driving"
+      * "biking distance" → value: 20, unit: "minutes", mode: "bicycling"
+      * "by transit in 40 minutes" → value: 40, unit: "minutes", mode: "transit"
+  type:
+    value: "number or null"
+    unit: "string (e.g., 'minutes', 'hours', 'seconds') or null"
+    mode: "string or null"
+  example:
+    value: 15
+    unit: "minutes"
+    mode: "walking"
+ 
+minimum_star_requirement:
+  description: "The minimum Google Maps star rating the place should have."
+  prompt: |
+    * Extract the numerical star rating if explicitly mentioned. Ignore qualifiers like "at least", "minimum", "or higher".
+    * Do not validate the numerical rating; extract it as provided (e.g., "10 stars" → 10.0, "4.75 stars" → 4.75).
+    * For qualitative terms indicating quality, infer a numerical star rating based on the following mappings:
+      * 4.5: "excellent", "amazing", "outstanding"
+      * 4.0: "highly-rated", "top-rated", "best"
+      * 3.5: "good", "decent"
+      * 3.0: "average", "okay"
+    * For unrecognized qualitative terms (e.g., "fantastic"), extract the term as a string (e.g., "fantastic").
+    * If multiple qualitative terms are present (e.g., "good but highly-rated"), use the highest rating (e.g., 4.0).
+    * If the query includes "best" for a competitive category (e.g., restaurants, bars in a major city like NYC), use 4.5 unless another rating is specified.
+    * If no star rating or qualitative term is specified, return null.
+    * Examples:
+      * "4 stars or higher" → 4.0
+      * "minimum 3.5 stars" → 3.5
+      * "4.75 stars" → 4.75
+      * "10 stars" → 10.0
+      * "highly-rated" → 4.0
+      * "good restaurants" → 3.5
+      * "best restaurants in NYC" → 4.5
+      * "fantastic museums" → "fantastic"
+      * "rooftop bars in NYC" → null
+  type: "number, string, or null"
+  example: 4.0
+ 
+additional_requests:
+  description:  "Any other relevant information or constraints the user mentions. It could be more than one. This could include:"
+  prompt: |
+    * Specific features (e.g., "with outdoor seating", "open now", "dog-friendly")
+    * Price range (e.g., "cheap", "expensive")
+    * Cuisine type (e.g., "Italian", "Mexican")
+    * Amenities (e.g., "free Wi-Fi", "parking")
+    * If there are no additional requests, set to `null`.  Don't include generic phrases like "please" or "thank you."
+  type: "list or null"
+  example:  "['highly-rated', 'pizza']"
