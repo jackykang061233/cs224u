@@ -12,8 +12,6 @@ def disambiguate_location(
     query: str,
     geolocation_coords: Optional[Tuple[float, float]] = None,
     max_results: int = 5,
-    # cache: Optional[redis.Redis] = None,
-    cache = None,
     retries: int = 2,
     timeout: int = 5
 ) -> Dict:
@@ -23,7 +21,6 @@ def disambiguate_location(
         query: Location string (e.g., "Paris", "Pariis", "Springfield").
         geolocation_coords: User's current coordinates for prioritizing results.
         max_results: Maximum number of results to return.
-        cache: Redis client for caching results (optional).
         retries: Number of retries for transient errors.
         timeout: Geocoding request timeout in seconds.
     Returns:
@@ -36,9 +33,6 @@ def disambiguate_location(
     reference_locations = [
         {"name": "Paris", "type": "city", "country": "France", "coordinates": (48.8566, 2.3522)},
         {"name": "New York City", "type": "city", "country": "USA", "coordinates": (40.7128, -74.0060)},
-        {"name": "Eiffel Tower", "type": "landmark", "city": "Paris", "coordinates": (48.8584, 2.2945)},
-        {"name": "Springfield, IL", "type": "city", "country": "USA", "coordinates": (39.7817, -89.6501)},
-        {"name": "Springfield, MA", "type": "city", "country": "USA", "coordinates": (42.1015, -72.5898)},
     ]
     aliases = {"The Big Apple": "New York City", "NYC": "New York City"}
 
@@ -57,13 +51,6 @@ def disambiguate_location(
         #     "coordinates": geolocation_coords,
         #     "options": None
         # }
-
-    # Check cache
-    cache_key = f"location:{query.lower()}"
-    if cache:
-        cached = cache.get(cache_key)
-        if cached:
-            return json.loads(cached)
 
     # Check aliases
     query = aliases.get(query.lower(), query)
@@ -85,8 +72,6 @@ def disambiguate_location(
             "coordinates": matched_loc["coordinates"],
             "options": None
         }
-        if cache:
-            cache.setex(cache_key, 3600, json.dumps(result))  # Cache for 1 hour
         return result
 
     # Geocoding with retries
@@ -119,8 +104,6 @@ def disambiguate_location(
             "coordinates": (loc.latitude, loc.longitude),
             "options": None
         }
-        if cache:
-            cache.setex(cache_key, 3600, json.dumps(result))
         return result
 
     # Multiple results: Prioritize by geolocation (if provided)
@@ -153,3 +136,13 @@ def disambiguate_location(
         "coordinates": None,
         "options": options  # Caller handles user selection
     }
+    
+if __name__ == '__main__':
+    result = disambiguate_location('near me')
+    for key, item in result.items():
+        print(key)
+        print(item)
+    for option in result['options']:
+        print(option)
+    # # location = (result.latitude, result.longitude)
+    # print(location)

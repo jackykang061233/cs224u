@@ -2,7 +2,7 @@ import googlemaps
 from datetime import datetime
 from dotenv import load_dotenv
 import os
-from help_functions.detecting_location import disambiguate_location
+from core.help_functions.detecting_location import disambiguate_location
 import time
  
 load_dotenv()
@@ -84,14 +84,11 @@ def get_place_details(place_id):
  
 def find_places_within_travel_distance(
     location,
+    minimum_star_requirement=3.5,
     place_type='restaurant',
     travel_mode='walking',
     max_travel_time=900,
-    radius=1500,
-    cuisine=None,
-    price_level=None,
-    free_wifi=False,
-    open_now=False
+    open_now=True,
 ):
     """
     Find places within a specified travel time from a location, with filters for cuisine, price, Wi-Fi, and open status.
@@ -118,32 +115,26 @@ def find_places_within_travel_distance(
             return []
         location = (geocode[0]['geometry']['location']['lat'],
                     geocode[0]['geometry']['location']['lng'])
- 
-    # Set price level parameters
-    minprice, maxprice = None, None
-    if price_level:
-        price_level = price_level.lower()
-        if price_level == 'cheap':
-            minprice, maxprice = 0, 1
-        elif price_level == 'moderate':
-            minprice, maxprice = 2, 2
-        elif price_level == 'expensive':
-            minprice, maxprice = 3, 4
-        else:
-            print(f"Invalid price_level: {price_level}. Use 'cheap', 'moderate', or 'expensive'.")
-            return []
+
  
     # Build keyword for filtering
     keywords = []
-    if cuisine:
-        keywords.append(cuisine)
-    if free_wifi:
-        keywords.append('free Wi-Fi')
+
     keyword = ' '.join(keywords) if keywords else None
  
     places = []
     next_page_token = None
- 
+    
+    # Set radius
+    if travel_mode == 'walking':
+        radius = 1.39*max_travel_time
+    elif travel_mode == 'driving':
+        radius = 16*max_travel_time
+    if travel_mode == 'transit':
+        radius = 9*max_travel_time
+    if travel_mode == 'bicycling':
+        radius = 5*max_travel_time
+    
     # Handle pagination (up to 60 results)
     for _ in range(3):  # Max 3 pages (20 results each)
         try:
@@ -152,9 +143,7 @@ def find_places_within_travel_distance(
                 radius=radius,
                 type=place_type,
                 keyword=keyword,
-                minprice=minprice,
-                maxprice=maxprice,
-                opennow=open_now,
+                open_now=open_now,
                 page_token=next_page_token
             )
  
@@ -176,21 +165,24 @@ def find_places_within_travel_distance(
         except Exception as e:
             print(f"Error fetching places: {e}")
             break
- 
+
     # Filter places by travel time
     filtered_places = []
     if places:
         destinations = [place['location'] for place in places]
         travel_times = get_travel_time(location, destinations, travel_mode=travel_mode)
- 
+
         for place, travel_time in zip(places, travel_times):
+            # print(place)
+            # print(travel_time)
+            # print(max_travel_time)
             if travel_time <= max_travel_time:
                 details = get_place_details(place['place_id'])
-                if details:
-                    details['travel_time_minutes'] = round(travel_time / 60, 1)
+                if details and details['rating'] >= minimum_star_requirement:
+                    details['travel_time'] = round(travel_time / 60, 1)
                     details['travel_mode'] = travel_mode.lower()
                     filtered_places.append(details)
- 
+
     return filtered_places
  
 # Example usage
@@ -201,26 +193,18 @@ if __name__ == "__main__":
     print(location)
     place_type = 'restaurant'  # or 'store' for shops
     travel_mode = 'driving'  # Options: 'walking', 'driving', 'transit', 'bicycling'
-    cuisine = 'Mexican'  # Filter for Mexican restaurants
-    price_level = 'expensive'  # Options: 'cheap', 'moderate', 'expensive'
-    free_wifi = True  # Search for places with free Wi-Fi
     open_now = True  # Only return places currently open
  
     results = find_places_within_travel_distance(
         location=location,
         place_type=place_type,
         travel_mode=travel_mode,
-        cuisine=cuisine,
-        price_level=price_level,
-        free_wifi=free_wifi,
         open_now=open_now
     )
  
     # Print results
     if results:
-        filter_desc = f"{cuisine or ''} {place_type}s{' with free Wi-Fi' if free_wifi else ''}"
-        filter_desc += f" ({price_level})" if price_level else ""
-        print(f"Found {len(results)} {filter_desc.strip()} within 15 minutes by {travel_mode}:")
+        print(f"Found {len(results)} places within 15 minutes by {travel_mode}:")
         for place in results:
             print(f"\n- {place['name']}")
             print(f"  Address: {place['address']}")
@@ -231,8 +215,7 @@ if __name__ == "__main__":
             print(f"  Website: {place['website']}")
             print(f"  Opening Hours: {', '.join(place['opening_hours'])}")
             print(f"  {place['review_note']}")
-            if free_wifi:
-                print("  Wi-Fi Note: Wi-Fi availability based on keyword search; verify with venue.")
+
             if place['reviews']:
                 print("  Reviews (up to 5, sorted by recency):")
                 for review in place['reviews']:
@@ -240,5 +223,5 @@ if __name__ == "__main__":
             else:
                 print("  Reviews: None")
     else:
-        print(f"No {cuisine or place_type}s found within 15 minutes by {travel_mode}.")
+        print(f"No {place_type}s found within 15 minutes by {travel_mode}.")
  

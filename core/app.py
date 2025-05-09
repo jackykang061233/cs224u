@@ -13,11 +13,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-class MainAgent:
+class FunctionCallingAgent:
     def __init__(self):
         self.client = LLMClient(api_key=os.getenv('OPENAI_API_KEY'))
         with open('lib/config.yaml', 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
+        with open('lib/allowed_places.yaml', 'r', encoding='utf-8') as f:
+            self.place_config = yaml.safe_load(f)
+
         json_format = json.dumps({key: item['type'] for key, item in self.config.items()}, indent=2)
         detail_instruction = '\n'.join([str(index)+'. '+'**'+key+'** '+item["description"]+'\n'+item["prompt"] for index, (key, item) in enumerate(self.config.items(), start=1)])
         example_output = json.dumps({key: item['example'] for key, item in self.config.items()}, indent=2)
@@ -70,7 +73,8 @@ class MainAgent:
                 system_prompt="You are a good assistant",
                 user_prompt=self.prompt + user_query,
             )
-            llm_result = self.safe_parse_json(llm_result)
+            print(llm_result)
+            # llm_result = self.safe_parse_json(llm_result)
         except Exception as e:
             # logging.error(f"LLM call failed: {e}")
             return {
@@ -128,7 +132,7 @@ class MainAgent:
             validated["location"] = None
 
         # 2. Validate place_to_search
-        validated["place_to_search"] = extracted["place_to_search"]
+        validated["place_to_search"] = self._check_place_to_search(extracted["place_to_search"])
 
         # 3. Validate travel_duration
         try:
@@ -239,17 +243,48 @@ class MainAgent:
         result = disambiguate_location(
             query=location,
             geolocation_coords=geolocation_coords,
-            cache=None
         )
-
+        print(result)
         if result["options"]:
-            # Ambiguous location: Pass options to the app for user selection
+            # Display options to user
+            print("Please choose a location:")
+            for i, option in enumerate(result["options"], start=1):
+                print(f"{i}. {option['value']}")
+
+            # Get user's choice
+            while True:
+                try:
+                    selection = int(input("Enter the number of your choice: "))
+                    if 1 <= selection <= len(result["options"]):
+                        selected_option = result["options"][selection - 1]
+                        break
+                    else:
+                        print("Invalid choice. Try again.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            result = selected_option
             return result
         elif result["type"]:
             # Resolved location
             return result
         else:
             raise LocationError(f"Could not resolve location: {location}")
+    
+    def _check_place_to_search(self, place_to_search: Optional[str]) -> str:
+        prompt = f"""
+You are an expert in categorizing place types for the Google Maps Places API.
+Given a custom place type, map it to the closest matching Google Maps place type from the following list:
+{', '.join(self.place_config['allowed_places'])}
+
+Custom place type: "{place_to_search}"
+Return the result as a JSON object with the key "google_place_type" and the mapped type as the value.
+If no match is found, return "unknown".
+"""
+        result = self.client.call_llm(
+                system_prompt="You are a good assistant",
+                user_prompt=prompt,
+            )
+        return result["google_place_type"]
     
     def _check_travel_duration(self, travel_duration: Optional[Dict]) -> Dict:
         """
@@ -304,17 +339,15 @@ class MainAgent:
         elif unit.lower() not in {"minutes", "hours", "seconds"}:
             raise TravelDurationError(f"Invalid unit: {unit}. Must be 'minutes', 'hours', or 'seconds'")
 
-        # Convert to minutes for API consistency
+        # Convert to seconds for API consistency
         if unit.lower() == "hours":
+            value *= 3600
+        elif unit.lower() == "minutes":
             value *= 60
-            unit = "minutes"
-        elif unit.lower() == "seconds":
-            value /= 60
-            unit = "minutes"
 
         return {
             "value": value,
-            "unit": "minutes",
+            "unit": "seconds",
             "mode": mode.lower()
         }
         
@@ -396,7 +429,7 @@ class MainAgent:
 
 if __name__ == '__main__':
 
-    agent = MainAgent()
+    agent = FunctionCallingAgent()
     
     user_querys = ["Can you recommend a good coffee shop near downtown Boston that’s within a 10-minute walk?",
     "I’m looking for a highly-rated Thai restaurant in San Francisco—any suggestions?",

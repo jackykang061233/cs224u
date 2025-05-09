@@ -15,11 +15,11 @@ place_to_search:
   description: "The type of place the user is looking for. Examples:"
   prompt: |
     * "restaurant"
-    * "coffee shop"
-    * "grocery store"
+    * "cafe"
+    * "bakery"
     * "pharmacy"
     * "shopping mall"
-    * "bookstore"
+    * "museum"
     * Be as specific as possible.  If the user says "a place to eat", use "restaurant".  If they say "food", also use "restaurant."
     * If no place is specified, set to `null`.
   type: "string or null"
@@ -93,3 +93,4 @@ additional_requests:
     * If there are no additional requests, set to `null`.  Don't include generic phrases like "please" or "thank you."
   type: "list or null"
   example:  "['highly-rated', 'pizza']"
+

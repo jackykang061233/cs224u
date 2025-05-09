@@ -1,5 +1,6 @@
 import openai
 import os
+import json
 
 class LLMClient:
     def __init__(self, api_key=None, model="gpt-4o-mini"):
@@ -35,9 +36,11 @@ class LLMClient:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages
+                messages=messages,
+                response_format={"type": "json_object"}
             )
-            return response.choices[0].message.content
+
+            return json.loads(response.choices[0].message.content)
         except Exception as e:
             print(f"Error communicating with OpenAI API: {e}")
             return None
