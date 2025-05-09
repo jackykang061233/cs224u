@@ -58,7 +58,7 @@ def get_place_details(place_id):
         return {
             'name': result.get('name'),
             'address': result.get('formatted_address'),
-            'rating': result.get('rating', 'N/A'),
+            'rating': result.get('rating', 0),
             'price_level': result.get('price_level', 'N/A'),  # 0-4, N/A if not available
             'reviews': [
                 {

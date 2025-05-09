@@ -1,6 +1,5 @@
 from core.vector_search.vector_embedding import vector_embedding
 import torch
-import pandas as pd
 import torch
 from sentence_transformers import util
 
@@ -18,8 +17,8 @@ def rank_places(data, keywords=None, weights=None):
                                  Without keywords: {'rating': 0.6, 'travel_time': 0.4}.
     
     Returns:
-        pd.DataFrame: DataFrame with columns 'Place', 'Rating', 'Total Travel Time', 'Combined Score',
-                      and 'Average Similarity' (if keywords provided), sorted by Combined Score.
+        list: List of dictionaries with original place data, plus 'combined_score' and
+              'average_similarity' (if keywords provided), sorted by combined_score.
     """
     # Determine if keywords are provided
     use_keywords = keywords and (isinstance(keywords, str) and keywords.strip()) or (isinstance(keywords, list) and keywords)
@@ -47,15 +46,12 @@ def rank_places(data, keywords=None, weights=None):
     
     # Process reviews and calculate scores
     place_scores = []
-    print(len(data))
+    
     for place_data in data:
         place_name = place_data.get("name")
-        address = place_data.get("address")
         reviews = place_data.get("reviews", [])
         rating = place_data.get("rating", 0)
-        travel_time = place_data.get("total_travel_time", float('inf'))
-        travel_mode = place_data.get("travel_mode")
-        open_hours = place_data.get("opening_hours")
+        travel_time = place_data.get("travel_time", float('inf'))
         
         if not place_name or rating <= 0 or travel_time <= 0:
             continue  # Skip invalid or incomplete data
@@ -99,25 +95,16 @@ def rank_places(data, keywords=None, weights=None):
                 weights['travel_time'] * travel_time_score
             )
         
-        # Store scores
-        score_dict = {
-            "Place": place_name,
-            "Rating": rating,
-            "Total Travel Time": travel_time,
-            "Combined Score": combined_score
-        }
+        # Copy place_data and add scores
+        place_dict = place_data.copy()
+        place_dict["combined_score"] = combined_score
         if use_keywords:
-            score_dict["Average Similarity"] = avg_similarity
+            place_dict["average_similarity"] = avg_similarity
         
-        place_scores.append(score_dict)
-        print(score_dict)
-        input(1)
+        place_scores.append(place_dict)
     
-    # Convert to DataFrame for ranking
-    df = pd.DataFrame(place_scores)
-    # Reorder columns to ensure 'Average Similarity' (if present) comes before 'Combined Score'
-    columns = ['Place', 'Average Similarity', 'Rating', 'Total Travel Time', 'Combined Score'] if use_keywords else ['Place', 'Rating', 'Total Travel Time', 'Combined Score']
-    df = df[[col for col in columns if col in df.columns]]
-    df = df.sort_values(by="Combined Score", ascending=False).reset_index(drop=True)
+    # Sort by combined_score in descending order
+    place_scores.sort(key=lambda x: x["combined_score"], reverse=True)
     
-    return df
+    return place_scores
+    
